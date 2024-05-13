@@ -1,0 +1,246 @@
+---
+title: "Horkan_Final_Project_668"
+author: "Erin Horkan"
+date: "2024-05-04"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(vegan)
+library(dplyr)
+library(stats)
+library(permute)
+library(lattice)
+library(knitr)
+library(stringr)
+```
+
+## Importing Data
+
+I imported the ag_map_with_alpha dataset. 
+I went through the dataset and selected some variables of interest for analysis as well as all of the columns containing diversity metrics to create a smaller dataframe that will be easier to work with and named it ag.ready.
+
+After looking through the different variables I decided to test what has a greater influence on gut microbiome diversity, cats, dogs, and/or household plants.
+
+I made a smaller dataframe of just the variables I was interested in along with the diversity metrics named home.conditions.
+
+```{r load data, echo=FALSE}
+ag_map_with_alpha <- read.delim("~/Final_Project_668/ag_map_with_alpha.txt", comment.char="#")
+#head(ag_map_with_alpha)
+ag.ready <- ag_map_with_alpha[, c( "cat","dog","types_of_plants", "census_region", "country", "last_travel","level_of_education", "race", "weight_kg", "probiotic_frequency", "last_travel", "taxon_id", "seq_depth", "faiths_pd_1250", "faiths_pd_2500", "faiths_pd_5000","faiths_pd_10000","shannon_1250", "shannon_2500", "shannon_5000", "shannon_10000", "observed_otus_1250", "observed_otus_2500", "observed_otus_5000", "observed_otus_10000")]
+#head(ag.ready)
+home.conditions<- ag.ready[,c("cat","dog","types_of_plants", "taxon_id", "seq_depth", "faiths_pd_1250", "faiths_pd_2500", "faiths_pd_5000","faiths_pd_10000","shannon_1250", "shannon_2500", "shannon_5000", "shannon_10000", "observed_otus_1250", "observed_otus_2500", "observed_otus_5000", "observed_otus_10000")]
+#sum(str_count(home.conditions$cat, "Yes"))
+#sum(str_count(home.conditions$cat, "No"))
+#sum(str_count(home.conditions$dog, "Yes"))
+#sum(str_count(home.conditions$dog, "No"))
+home.conditions$dog<- as.factor(home.conditions$dog)
+home.conditions$cat<- as.factor(home.conditions$cat)
+home.conditions$types_of_plants<- as.factor(home.conditions$types_of_plants)
+```
+
+## Rarefaction Depth 
+
+Next I needed to decide which rarefaction depth to use so I plotted all of the rarefaction depths for the 3 diversity indices, Shannon, Faith's Phylogenetic Diversity, and the Observed OTUs.
+
+```{r shannon, echo=FALSE}
+Shannons <- ggplot(data=home.conditions, aes(x=seq_depth)) +
+  geom_point(aes(x=seq_depth, y= shannon_1250), color= "orange")+
+  geom_point(aes(x=seq_depth, y= shannon_2500), color= "red") + 
+  geom_point(aes(x=seq_depth, y= shannon_5000), color= "green") + 
+  geom_point(aes(x=seq_depth, y= shannon_10000), color= "blue")+
+  theme_classic()+
+  scale_fill_discrete(breaks = c("1250", "2500","5000","10000"))+
+  ggtitle("Shannon Diversity by Rarefaction Depth")+
+  ylab("Shannon Diversity")+
+  xlab("Sequence Depth")
+
+Shannons
+```
+Shannon Diversity plots show little difference between rarefaction depths, I will use 1250 for the rarefaction depth for Shannon Diversity. 
+
+```{r faith, echo=FALSE}
+Faiths<- ggplot(data=home.conditions, aes(x=seq_depth))+
+  geom_point(aes(x=seq_depth,y= faiths_pd_1250), color= "orange")+
+  geom_point(aes(x=seq_depth, y= faiths_pd_2500), color= "red")+
+  geom_point(aes(x=seq_depth, y= faiths_pd_5000), color= "green") + 
+  geom_point(aes(x=seq_depth, y= faiths_pd_10000), color= "blue")+
+  scale_fill_discrete(breaks = c("1250", "2500","5000","10000"))+
+  ggtitle("Faiths Phylogenetic Diversity by Rarefaction depth")+
+  ylab("Faiths PD")+
+  xlab("Sequence Depth")
+Faiths
+```
+Faith's Phylogenetic Diversity shows that the larger samples have higher phylogenetic diversity for a larger rarefaction depth. I will use 10,000 for the rarefaction depth for PD. 
+
+```{r otu, echo=FALSE}
+OTUs<-ggplot(data=home.conditions, aes(x=seq_depth)) +
+  geom_point(aes(x=seq_depth,y= observed_otus_1250), color= "orange")+
+  geom_point(aes(x=seq_depth, y= observed_otus_2500), color= "red") + 
+  geom_point(mapping = aes(x=seq_depth, y= observed_otus_5000), color= "green") + 
+  geom_point(aes(x=seq_depth, y= observed_otus_10000), color= "blue")+
+  scale_fill_discrete(breaks = c("1250", "2500","5000","10000"))+
+  ggtitle("Observed Taxonomic Units by Rarefaction depth")+
+  ylab("Number of OTUs")+
+  xlab("Sequence Depth")
+OTUs
+
+
+```
+Observed OTUs are higher for larger rarefaction depth. I will use 10,000 for the rarefaction depth for Observed OTUs.
+
+## Further Preparing the dataset
+
+To finally get the data ready for analysis I decided to remove all of the samples that did not include a response for my variables of interest, cat, dog, and types of plants. This cut the number of samples from 5094 to 2920. I also reclassified the plant types as none, low, medium, or high.
+
+```{r pressure, echo=FALSE}
+home.conditions <- home.conditions[home.conditions$cat != "Unspecified", ]
+home.conditions <- home.conditions[home.conditions$dog != "Unspecified", ]
+home.conditions <- home.conditions[home.conditions$types_of_plants != "Unspecified", ]
+
+home.conditions$types_of_plants <- recode_factor(home.conditions$types_of_plants, 
+                                   "Less than 5" = "Low",
+                                   "6 to 10" = "Medium",
+                                   "11 to 20" = "Medium",
+                                   "21 to 30" = "Medium",
+                                   "More than 30" = "High")
+```
+
+## Check For Normal Distribution
+
+Now that the data has been prepared I needed to check for normal distribution
+```{r normal, echo=FALSE}
+var(home.conditions$shannon_1250)
+qqnorm(home.conditions$shannon_1250)
+qqline(home.conditions$shannon_1250)
+hist(home.conditions$shannon_1250)
+shapiro.test(home.conditions$shannon_1250)
+
+
+var(home.conditions$faiths_pd_10000)
+qqnorm(home.conditions$faiths_pd_10000)
+qqline(home.conditions$faiths_pd_10000)
+hist(home.conditions$faiths_pd_10000)
+shapiro.test(home.conditions$faiths_pd_10000)
+
+var(home.conditions$observed_otus_10000)
+qqnorm(home.conditions$observed_otus_10000)
+qqline(home.conditions$observed_otus_10000)
+hist(home.conditions$observed_otus_10000)
+shapiro.test(home.conditions$observed_otus_10000)
+
+```
+Based on the QQplots and the histogram plots of the distribution, the observed OTUs are the most normally distributed while the shannon diversity is skewed right, and the phylogenetic diversity is skewed left. 
+The Shapiro-Wilkes test results W values for all of the diversity metrics are all near 1, Observed OTUs W value of 0.99554 was closest to 1, while the Shannon Diversity W value of 0.94946 was furthest from 1. All of the p-values for the Shapiro-Wilkes test were well below 0.05 indicating the variation in the dataset does not vary significantly from normal so I will not transform the data before further analysis. 
+
+## Visualize the Data
+```{r cat box, echo=FALSE}
+Shannon_bp <- ggplot(home.conditions, aes(x = cat, y = shannon_1250, color = cat)) +
+  geom_boxplot()+
+  ggtitle("Shannon Diversity for Cats")+
+  xlab("Has Cat")
+Shannon_bp
+
+PD_BP <- ggplot(home.conditions, aes(x = cat, y = faiths_pd_10000, color = cat)) +
+  geom_boxplot()+
+  ggtitle("PB for Cats")+
+  xlab("Has Cat")
+PD_BP
+
+OTU_BP <- ggplot(home.conditions, aes(x = cat, y = observed_otus_10000, color = cat)) +
+  geom_boxplot()+
+  ggtitle("Observed OTUs for Cats")+
+  xlab("Has Cat")
+OTU_BP
+
+```
+Diversity Metrics Appear to show no difference between samples from people who have cats versus those who do not. 
+
+```{r dog box, echo=FALSE}
+Shannon_dog <- ggplot(home.conditions, aes(x = dog, y = shannon_1250, color = dog)) +
+  geom_boxplot()+
+  ggtitle("Shannon Diversity for Dogs")+
+  xlab("Has Dog")
+Shannon_dog
+
+PD_dog <- ggplot(home.conditions, aes(x = dog, y = faiths_pd_10000, color = dog)) +
+  geom_boxplot()+
+  ggtitle("PB for Dogs")+
+  xlab("Has Dog")
+PD_dog
+
+OTU_Dogs <- ggplot(home.conditions, aes(x = dog, y = observed_otus_10000, color = dog)) +
+  geom_boxplot()+
+  ggtitle("Observed OTUs for Dogs")+
+  xlab("Has Dog")
+OTU_Dogs
+```
+Diversity Metrics Appear to show little difference between samples from people that have dogs versus those who do not. 
+```{r plant box, echo=FALSE}
+Shannon_bp <- ggplot(home.conditions, aes(x = types_of_plants, y = shannon_1250, color = types_of_plants)) +
+  geom_boxplot()+
+  ggtitle("Shannon Diversity for Plants")+
+  xlab("Amount of Plants")
+Shannon_bp
+
+PD_BP <- ggplot(home.conditions, aes(x = types_of_plants, y = faiths_pd_10000, color = types_of_plants)) +
+  geom_boxplot()+
+  ggtitle("PB for Plants")+
+  xlab("Amount of Plants")
+PD_BP
+
+OTU_BP <- ggplot(home.conditions, aes(x = types_of_plants, y = observed_otus_10000, color = types_of_plants)) +
+  geom_boxplot()+
+  ggtitle("Obsered OTUs for Plants")+
+  xlab("Amount of Plants")
+OTU_BP
+```
+Diversity metrics for types of plants show a trend of higher diversity metrics for a higher number of types of plants. 
+
+## Significance Testing
+Now that we have prepared the data and visualized the data it is time to see if any variables have an effect on the gut diversity that is significant. 
+
+## Anova
+
+```{r anova, echo=FALSE}
+s.dog.cat <- aov(shannon_1250~dog+cat, data = home.conditions)
+summary(s.dog.cat)
+s.cat.plant <- aov(shannon_1250~cat+types_of_plants, data = home.conditions)
+summary(s.cat.plant)
+s.dog.plant<-aov(shannon_1250~dog+types_of_plants, data = home.conditions)
+summary(s.dog.plant)
+
+p.dog.cat <- aov(observed_otus_10000~dog+cat, data = home.conditions)
+summary(p.dog.cat)
+p.cat.plant <- aov(observed_otus_10000~cat+types_of_plants, data = home.conditions)
+summary(p.cat.plant)
+p.dog.plant<-aov(observed_otus_10000~dog+types_of_plants, data = home.conditions)
+summary(p.dog.plant)
+
+OTU.dog.cat <- aov(observed_otus_10000~dog+cat, data = home.conditions)
+summary(OTU.dog.cat)
+OTU.cat.plant <- aov(observed_otus_10000~cat+types_of_plants, data = home.conditions)
+summary(OTU.cat.plant)
+OTU.dog.plant<-aov(observed_otus_10000~dog+types_of_plants, data = home.conditions)
+summary(OTU.dog.plant)
+
+```
+The 2-way ANOVA tests show that number of types of plants has a significant effect on the gut diversity. This was true for all of the diversity metrics. Whether or not the person sampled had a dog does not have a significant effect, while whether the person has a cat was not significant for all but the shannon diversity by types of plants. Types of plants was significant for all tests for all diversity metrics. 
+
+## Plants Additional Significance Tests
+
+```{r tukey, echo=FALSE}
+OTU.plant <- aov(observed_otus_10000~types_of_plants, data = home.conditions)
+TukeyHSD(OTU.plant, which = "types_of_plants")
+
+pairwise.t.test(home.conditions$observed_otus_10000, home.conditions$types_of_plants,
+                p.adjust.method = "BH")
+```
+The Tukey test shows that the difference between groups increases in a stepwise manner with the largest difference between high and low, compared to the difference between low to medium categories, and the medium to high categories. 
+
+The pairwise T-test show that there is a significant difference between low, medium, and high when it comes to types of plants influence on the OTUs found in a person's gut microbiome sample. 
+
+## Conclusions and Summary
+The number of types of plants a person has in their home has a more significant influence on the diversity of a persons gut microbiome than the kinds of pets they have in their home. Whether the person had a dog or a cat had no significant influence on the diversity of a persons gut microbiome diversity. I found these results surprising as I had read before that having pets can lead to kids in the same home having more diverse microbiomes. It seems like having a different animal in the home would have a larger influence than plants, though the high category for plants is over 30 plants which depending on the size of a persons home could meant they have an indoor jungle. It is also possible since I did not read the metadata that types of plants is indicative of the number of different kinds of plants a person eats not the types of plants in their house which makes a little more sense.
