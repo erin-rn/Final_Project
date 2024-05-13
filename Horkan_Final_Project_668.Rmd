@@ -27,10 +27,11 @@ After looking through the different variables I decided to test what has a great
 I made a smaller dataframe of just the variables I was interested in along with the diversity metrics named home.conditions.
 
 ```{r load data, echo=FALSE}
-ag_map_with_alpha <- read.delim("~/Final_Project_668/ag_map_with_alpha.txt", comment.char="#")
+#ag_map_with_alpha <- read.delim("ag_map_with_alpha.txt", comment.char="#")
 #head(ag_map_with_alpha)
-ag.ready <- ag_map_with_alpha[, c( "cat","dog","types_of_plants", "census_region", "country", "last_travel","level_of_education", "race", "weight_kg", "probiotic_frequency", "last_travel", "taxon_id", "seq_depth", "faiths_pd_1250", "faiths_pd_2500", "faiths_pd_5000","faiths_pd_10000","shannon_1250", "shannon_2500", "shannon_5000", "shannon_10000", "observed_otus_1250", "observed_otus_2500", "observed_otus_5000", "observed_otus_10000")]
+#ag.ready <- ag_map_with_alpha[, c( "cat","dog","types_of_plants", "census_region", "country", "last_travel","level_of_education", "race", "weight_kg", "probiotic_frequency", #"last_travel", "taxon_id", "seq_depth", "faiths_pd_1250", "faiths_pd_2500", "faiths_pd_5000","faiths_pd_10000","shannon_1250", "shannon_2500", "shannon_5000", "shannon_10000", #"observed_otus_1250", "observed_otus_2500", "observed_otus_5000", "observed_otus_10000")]
 #head(ag.ready)
+read.csv("ag.ready")
 home.conditions<- ag.ready[,c("cat","dog","types_of_plants", "taxon_id", "seq_depth", "faiths_pd_1250", "faiths_pd_2500", "faiths_pd_5000","faiths_pd_10000","shannon_1250", "shannon_2500", "shannon_5000", "shannon_10000", "observed_otus_1250", "observed_otus_2500", "observed_otus_5000", "observed_otus_10000")]
 #sum(str_count(home.conditions$cat, "Yes"))
 #sum(str_count(home.conditions$cat, "No"))
